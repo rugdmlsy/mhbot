@@ -1,5 +1,4 @@
-# 检测到疑似集会码时设精
-import re
+# 将被回复的消息设置为精华
 from nonebot import on_message
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent
 from nonebot_plugin_session import extract_session, SessionIdType
@@ -7,14 +6,10 @@ from nonebot_plugin_session import extract_session, SessionIdType
 from .config import config
 
 # 创建一个消息处理器，监听所有群消息
-auto_set_essence = on_message(priority=config.essence_priority, block=False)
+reply_essence = on_message(priority=config.essence_priority, block=False)
 
-# 定义正则表达式，匹配形如 "=f7TXW!bCMa?" 的消息
-pattern = re.compile(r'^[A-Za-z0-9!@#$%^&*()_+=?-]{12}$')
-# 排除AV号、BV号
-sub_pattern = re.compile(r'^[AB]V[0-9a-zA-Z]{10}$')
 
-@auto_set_essence.handle()
+@reply_essence.handle()
 async def handle_message(bot: Bot, event: MessageEvent):
 
     session = extract_session(bot, event)
