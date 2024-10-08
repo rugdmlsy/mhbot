@@ -2,6 +2,7 @@
 
 from nonebot import on_message
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent, Message
+from nonebot_plugin_session import extract_session, SessionIdType
 from nonebot.rule import Rule
 
 from .config import config
@@ -27,6 +28,12 @@ reply_handler = on_message(rule=has_reply() & contains_keyword(keywords), priori
 
 @reply_handler.handle()
 async def handle_reply(bot: Bot, event: MessageEvent):
+
+    session = extract_session(bot, event)
+    group_id = session.get_id(SessionIdType.GROUP).split("_")[-1]
+    if group_id not in config.essence_white_list:
+        return
+
     message_id = event.reply.message_id
     # await reply_handler.send(f"检测到回复 {event.reply}，原始消息 ID 为 {message_id }")
     await bot.call_api("set_essence_msg", message_id=message_id )
