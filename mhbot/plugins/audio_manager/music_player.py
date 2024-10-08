@@ -1,46 +1,82 @@
-import os
 from nonebot import on_command
-from nonebot.adapters.onebot.v11 import Bot, Event, MessageSegment
+from nonebot.adapters.onebot.v11 import MessageSegment, Bot, Event
+from nonebot.params import CommandArg
+from nonebot.adapters import Message
+from nonebot.matcher import Matcher
 from pydub import AudioSegment
-import subprocess
+import os
+import random
 
-# 定义命令 'play_song'，别名为 '播放歌曲'
-play_song = on_command("play_song", aliases={"播放歌曲"}, priority=5)
+play_song = on_command("play", aliases={"播放"}, priority=5)
+
+
+# 从文件夹中随机选择一个文件
+def select_random_file(folder_path):
+    files = [
+        f
+        for f in os.listdir(folder_path)
+        if os.path.isfile(os.path.join(folder_path, f))
+    ]
+
+    # 检查是否有文件可供选择
+    if not files:
+        return None
+
+    random_file = random.choice(files)
+
+    return os.path.join(folder_path, random_file), random_file
+
+
+# 随机截取音频的15秒片段
+def get_random_audio_clip(file_path, duration=15):
+    audio = AudioSegment.from_file(file_path)
+    audio_length = len(audio)
+
+    if audio_length <= duration * 1000:
+        return audio
+
+    start_point = random.randint(0, audio_length - duration * 1000)
+    end_point = start_point + duration * 1000
+
+    return audio[start_point:end_point]
+
+
+# 将音频片段保存到一个临时文件
+def save_temp_audio_clip(audio_clip, output_path):
+    audio_clip.export(output_path, format="mp3")
+
+
+songs_folder = os.path.join(os.path.dirname(__file__), r"..\..\..\assets\songs\MyGO")
+
 
 # 定义一个处理歌曲播放的命令
 @play_song.handle()
-async def handle_play_song(bot: Bot, event: Event):
-    # 假设歌曲文件路径和名称
-    song_path = "path/to/song.mp3"  # 你需要确保该路径存在且歌曲文件已经下载好
-    
-    # 将歌曲转换为 silk 格式
-    silk_path = convert_to_silk(song_path)
+async def handle_play_song(matcher: Matcher, args: Message = CommandArg()):
+    args = args.extract_plain_text().strip()
 
-    if silk_path:
-        # 发送 silk 格式音频
-        await bot.send(event, MessageSegment.record(file=f"file:///{silk_path}"))
+    if not args or args == "random" or args == "随机" or args == "mygo":
+        song_path, song = select_random_file(songs_folder)
+        await matcher.send(MessageSegment.record(file=song_path))
+        await matcher.send(MessageSegment.text(f"正在播放：{song}"))
+        return
+
+    elif args == "clip":
+        song_path, song = select_random_file(songs_folder)
+        audio_clip = get_random_audio_clip(song_path)
+        temp_audio_path = os.path.join(os.path.dirname(__file__), "temp_audio_clip.mp3")
+        save_temp_audio_clip(audio_clip, temp_audio_path)
+        await matcher.send(MessageSegment.record(file=temp_audio_path))
+        await matcher.send(MessageSegment.text(f"正在播放随机片段：{song}"))
+        if os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)
+        return
+
     else:
-        await bot.send(event, "歌曲播放失败，无法转换为 silk 格式。")
-
-# 将 mp3 格式的文件转换为 silk 格式
-def convert_to_silk(input_file):
-    # 输出的 silk 文件路径
-    output_file = input_file.replace(".mp3", ".silk")
-    
-    # 使用 pydub 将 mp3 文件转为 wav
-    try:
-        sound = AudioSegment.from_mp3(input_file)
-        wav_file = input_file.replace(".mp3", ".wav")
-        sound.export(wav_file, format="wav")
-
-        # 使用 silk v3 encoder 将 wav 文件转换为 silk
-        result = subprocess.run(["./silk_v3_encoder", wav_file, output_file, "-tencent"], capture_output=True)
-
-        # 检查转换是否成功
-        if result.returncode == 0:
-            return output_file
-        else:
-            return None
-    except Exception as e:
-        print(f"转换失败: {e}")
-        return None
+        song_path = os.path.join(songs_folder, f"{args}")
+        if not song_path.endswith(".mp3"):
+            song_path += ".mp3"
+        if not os.path.exists(song_path):
+            await matcher.send(MessageSegment.text(f"找不到歌曲：{args}"))
+            return
+        await matcher.send(MessageSegment.record(file=song_path))
+        await matcher.send(MessageSegment.text(f"正在播放：{args}"))
