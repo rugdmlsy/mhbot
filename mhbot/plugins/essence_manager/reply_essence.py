@@ -1,34 +1,34 @@
 # 将被回复的消息设置为精华
+
 from nonebot import on_message
-from nonebot.adapters.onebot.v11 import Bot, MessageEvent
-from nonebot_plugin_session import extract_session, SessionIdType
+from nonebot.adapters.onebot.v11 import Bot, MessageEvent, Message
+from nonebot.rule import Rule
 
 from .config import config
 
-# 创建一个消息处理器，监听所有群消息
-reply_essence = on_message(priority=config.essence_priority, block=False)
+# 规则1：检查消息是否包含回复
+def has_reply() -> Rule:
+    async def _has_reply(bot: Bot, event: MessageEvent) -> bool:
+        # 检查消息中是否包含 reply 字段
+        return event.get_message().get("reply") is not None
+    return Rule(_has_reply)
 
+# 规则2：检查消息是否包含指定的关键词
+def contains_keyword(keywords: list) -> Rule:
+    async def _contains_keyword(bot: Bot, event: MessageEvent) -> bool:
+        message_content = event.get_plaintext().strip()
+        return any(keyword in message_content for keyword in keywords)
+    return Rule(_contains_keyword)
 
-@reply_essence.handle()
-async def handle_message(bot: Bot, event: MessageEvent):
+keywords = config.essence_reply_keywords
 
-    session = extract_session(bot, event)
-    group_id = session.get_id(SessionIdType.GROUP).split("_")[-1]
-    if group_id not in config.essence_white_list:
-        return
-    
-    message_content = event.get_plaintext().strip()  # 获取消息文本内容
+# 创建一个仅处理包含回复消息的处理器
+reply_handler = on_message(rule=has_reply() & contains_keyword(keywords), priority=config.essence_priority, block=False)
 
-    # 检查消息内容是否符合指定格式
-    if pattern.match(message_content):
-        if sub_pattern.match(message_content):
-            return
-        message_id = event.message_id  # 获取消息 ID
-
-        # 调用 OneBot v11 API 设置精华
-        try:
-            await bot.call_api("set_essence_msg", message_id=message_id)
-            await auto_set_essence.send("捕食到一条smdm！")
-        except Exception as e:
-            await auto_set_essence.send(f"设置精华消息失败: {e}")
+@reply_handler.handle()
+async def handle_reply(bot: Bot, event: MessageEvent):
+    message_id = event.reply.message_id
+    # await reply_handler.send(f"检测到回复 {event.reply}，原始消息 ID 为 {message_id }")
+    await bot.call_api("set_essence_msg", message_id=message_id )
+    await reply_handler.send(f"吃我瞬发王八拳！")
 
