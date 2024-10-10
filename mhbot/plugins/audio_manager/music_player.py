@@ -8,9 +8,14 @@ import os
 import random
 import json
 
-play_song = on_command("play", aliases={"播放"}, priority=5)
+from .config import config
+
+play_song = on_command(
+    "play", aliases={"播放"}, priority=config.audio_priority, block=True
+)
 json_file_path = os.path.join(os.path.dirname(__file__), "audio_dict.json")
 songs_folder = os.path.join(os.path.dirname(__file__), r"..\..\..\assets\songs")
+# songs_folder = r"C:\Users\xyc\Documents\Projects\QQBot\mhbot\assets\songs"
 
 
 # 读取JSON文件
@@ -33,11 +38,12 @@ def find_value_in_json(file_path, key):
 
 # 从文件夹中随机选择一个文件
 def select_random_file(folder_path):
-    files = [
-        f
-        for f in os.listdir(folder_path)
-        if os.path.isfile(os.path.join(folder_path, f))
-    ]
+    files = []
+
+    for dirpath, dirnames, filenames in os.walk(folder_path):
+        for f in filenames:
+            relative_path = os.path.relpath(os.path.join(dirpath, f), folder_path)
+            files.append(relative_path)
 
     # 检查是否有文件可供选择
     if not files:

@@ -1,10 +1,20 @@
 from nonebot.plugin import on_message
 from nonebot.adapters import Event, Message, Bot
 from nonebot_plugin_session import extract_session, SessionIdType
+from nonebot.rule import Rule
+from nonebot.adapters.onebot.v11 import MessageEvent
 
 from .config import config
 
-plus = on_message(priority=config.plus_one_priority, block=False)
+
+def not_at_me():
+    async def _not_at_me(event: MessageEvent):
+        return not event.is_tome()
+
+    return Rule(_not_at_me)
+
+
+plus = on_message(rule=not_at_me(), priority=config.plus_one_priority, block=False)
 msg_dict = {}
 
 

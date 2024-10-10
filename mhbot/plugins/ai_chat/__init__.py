@@ -1,10 +1,10 @@
 from nonebot.plugin import PluginMetadata
 
 from .config import Config
-from .music_player import play_song
+from .ai_chat import ai_chat_matcher
 
 __plugin_meta__ = PluginMetadata(
-    name="audio_manager",
+    name="ai_chat",
     description="",
     usage="",
     config=Config,
