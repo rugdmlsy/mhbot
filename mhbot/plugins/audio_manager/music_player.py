@@ -6,8 +6,29 @@ from nonebot.matcher import Matcher
 from pydub import AudioSegment
 import os
 import random
+import json
 
 play_song = on_command("play", aliases={"播放"}, priority=5)
+json_file_path = os.path.join(os.path.dirname(__file__), "audio_dict.json")
+songs_folder = os.path.join(os.path.dirname(__file__), r"..\..\..\assets\songs")
+
+
+# 读取JSON文件
+def load_json(file_path):
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        return data
+    except FileNotFoundError:
+        return None
+
+
+# 查找字典中key对应的value
+def find_value_in_json(file_path, key):
+    data = load_json(file_path)
+    if data:
+        return data.get(key, "None")
+    return None
 
 
 # 从文件夹中随机选择一个文件
@@ -46,20 +67,19 @@ def save_temp_audio_clip(audio_clip, output_path):
     audio_clip.export(output_path, format="mp3")
 
 
-songs_folder = os.path.join(os.path.dirname(__file__), r"..\..\..\assets\songs\MyGO")
-
-
 # 定义一个处理歌曲播放的命令
 @play_song.handle()
 async def handle_play_song(matcher: Matcher, args: Message = CommandArg()):
     args = args.extract_plain_text().strip()
 
+    # 随机点歌
     if not args or args == "random" or args == "随机" or args == "mygo":
         song_path, song = select_random_file(songs_folder)
         await matcher.send(MessageSegment.record(file=song_path))
         await matcher.send(MessageSegment.text(f"正在播放：{song}"))
         return
 
+    # 随机播放片段
     elif args == "clip":
         song_path, song = select_random_file(songs_folder)
         audio_clip = get_random_audio_clip(song_path)
@@ -71,10 +91,14 @@ async def handle_play_song(matcher: Matcher, args: Message = CommandArg()):
             os.remove(temp_audio_path)
         return
 
+    # 播放指定歌曲
     else:
-        song_path = os.path.join(songs_folder, f"{args}")
-        if not song_path.endswith(".mp3"):
-            song_path += ".mp3"
+        # 从json文件中查找歌曲
+        song_path = find_value_in_json(json_file_path, args)
+        # song_path = os.path.join(songs_folder, f"{args}")
+        # if not song_path.endswith(".mp3"):
+        #     song_path += ".mp3"
+        song_path = os.path.join(songs_folder, song_path)
         if not os.path.exists(song_path):
             await matcher.send(MessageSegment.text(f"找不到歌曲：{args}"))
             return
