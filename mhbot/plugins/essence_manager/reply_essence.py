@@ -1,6 +1,6 @@
 # 将被回复的消息设置为精华
 
-from nonebot import on_message
+from nonebot import on_command
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent
 from nonebot_plugin_session import extract_session, SessionIdType
 from nonebot.rule import Rule
@@ -26,24 +26,46 @@ def contains_keyword(keywords: list) -> Rule:
     return Rule(_contains_keyword)
 
 
-keywords = config.essence_reply_keywords
-
 # 创建一个仅处理包含回复消息的处理器
-reply_handler = on_message(
-    rule=has_reply() & contains_keyword(keywords),
+essence_setter = on_command(
+    cmd="j",
+    aliases={"精", "精华消息", "设精", "设为精华", "精华"},
+    rule=has_reply(),
     priority=config.essence_manual_priority,
     block=True,
 )
 
 
-@reply_handler.handle()
+@essence_setter.handle()
 async def handle_reply(bot: Bot, event: MessageEvent):
-    session = extract_session(bot, event)
-    group_id = session.get_id(SessionIdType.GROUP).split("_")[-1]
-    if group_id not in config.essence_white_list:
+    if not is_in_white_list(bot, event):
         return
 
     message_id = event.reply.message_id
-    # await reply_handler.send(f"检测到回复 {event.reply}，原始消息 ID 为 {message_id }")
     await bot.call_api("set_essence_msg", message_id=message_id)
-    await reply_handler.send("吃我瞬发王八拳！")
+    await essence_setter.send("吃我瞬发王八拳！")
+
+
+essence_deleter = on_command(
+    cmd="rm",
+    aliases={"删除精华", "删除", "取消设精", "取消精华", "取消", "移出精华"},
+    rule=has_reply(),
+    priority=config.essence_manual_priority,
+    block=True,
+)
+
+
+@essence_deleter.handle()
+async def handle_delete(bot: Bot, event: MessageEvent):
+    if not is_in_white_list(bot, event):
+        return
+
+    message_id = event.reply.message_id
+    await bot.call_api("delete_essence_msg", message_id=message_id)
+    await essence_deleter.send("金狮子撤回了一个王八拳。")
+
+
+def is_in_white_list(bot: Bot, event: MessageEvent) -> bool:
+    session = extract_session(bot, event)
+    group_id = session.get_id(SessionIdType.GROUP).split("_")[-1]
+    return group_id in config.essence_white_list
