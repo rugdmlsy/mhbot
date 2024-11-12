@@ -39,9 +39,11 @@ ai_chat_matcher = on_message(rule=to_me(), priority=config.chat_priority, block=
 
 @ai_chat_matcher.handle()
 async def handle_at_message(event: Event):
-    user_message = event.get_plaintext().strip()
+    user_message = str(event.get_plaintext().strip())
     if user_message == "":
         return
+    if user_message.startswith("处理时出错:"):
+        user_message = "猿神正在睡觉，不想理你。"
     user_id = event.get_user_id()
     if user_message:
         try:

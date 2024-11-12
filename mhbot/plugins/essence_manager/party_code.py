@@ -8,10 +8,11 @@ from nonebot_plugin_session import extract_session, SessionIdType
 from .config import config
 
 # 检测到疑似集会码时自动设精
-auto_set_essence = on_message(priority=config.essence_auto_priority, block=False)
+auto_set_essence = on_message(priority=config.essence_auto_priority, block=True)
 
 # 定义正则表达式，匹配形如 "=f7TXW!bCMa?" 的消息
 pattern = re.compile(r"^[A-Za-z0-9!@#$%^&*()_+=?-]{12}$")
+pattern2 = re.compile(r"^[A-Za-z0-9]{16}$")
 # 排除AV号、BV号
 sub_pattern = re.compile(r"^[AB]V[0-9a-zA-Z]{10}$")
 
@@ -28,7 +29,7 @@ async def handle_message(bot: Bot, event: MessageEvent):
     message_content = event.get_plaintext().strip()  # 获取消息文本内容
 
     # 检查消息内容是否符合指定格式
-    if pattern.match(message_content):
+    if pattern.match(message_content) or pattern2.match(message_content):
         if sub_pattern.match(message_content):
             return
         message_id = event.message_id  # 获取消息 ID
@@ -42,12 +43,23 @@ async def handle_message(bot: Bot, event: MessageEvent):
             await auto_set_essence.send(f"设置精华消息失败: {e}")
 
         data = read_json(JSON_FILE_PATH)
-        message_ids = data.get(group_id, [])
-        for id in message_ids:
-            await bot.call_api("delete_essence_msg", message_id=id)
-            await auto_set_essence.send("已删除上一条smdm。")
-        message_ids = [message_id]
-        data[group_id] = message_ids
+        if pattern.match(message_content):
+            id = data[group_id]["world"]
+            try:
+                await bot.call_api("delete_essence_msg", message_id=id)
+                await auto_set_essence.send("已删除上一条smdm。")
+            except Exception:
+                pass
+            data[group_id]["world"] = message_id
+        else:
+            id = data[group_id]["rise"]
+            try:
+                await bot.call_api("delete_essence_msg", message_id=id)
+                await auto_set_essence.send("已删除上一条smdm。")
+            except Exception:
+                pass
+            data[group_id]["rise"] = message_id
+
         write_json(data, JSON_FILE_PATH)
 
 
@@ -83,7 +95,9 @@ async def handle_clear_smdm(bot: Bot, event: MessageEvent):
     for message in essence_messages:
         message_id = message["message_id"]
         mess = await bot.call_api("get_msg", message_id=message_id)
-        if pattern.match(mess.get("raw_message", "")):
+        if pattern.match(mess.get("raw_message", "")) or pattern2.match(
+            mess.get("raw_message", "")
+        ):
             await bot.call_api("delete_essence_msg", message_id=message_id)
 
     await clear_smdm.send("已删除所有smdm。")
