@@ -5,14 +5,20 @@ from nonebot import on_message, on_command
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent
 from nonebot_plugin_session import extract_session, SessionIdType
 
+from ..tools.rules import match_regex
 from .config import config
 
-# 检测到疑似集会码时自动设精
-auto_set_essence = on_message(priority=config.essence_auto_priority, block=True)
+# 定义正则表达式，匹配集会码
+pattern = re.compile(r"^[A-Za-z0-9!@#$%^&*()_+=?-]{12}$")  # world 集会码
+pattern2 = re.compile(r"^[A-Za-z0-9]{16}$")  # rise 集会码
 
-# 定义正则表达式，匹配形如 "=f7TXW!bCMa?" 的消息
-pattern = re.compile(r"^[A-Za-z0-9!@#$%^&*()_+=?-]{12}$")
-pattern2 = re.compile(r"^[A-Za-z0-9]{16}$")
+# 检测到疑似集会码时自动设精
+auto_set_essence = on_message(
+    rule=match_regex(pattern, pattern2),
+    priority=config.essence_auto_priority,
+    block=True,
+)
+
 # 排除AV号、BV号
 sub_pattern = re.compile(r"^[AB]V[0-9a-zA-Z]{10}$")
 
@@ -29,38 +35,37 @@ async def handle_message(bot: Bot, event: MessageEvent):
     message_content = event.get_plaintext().strip()  # 获取消息文本内容
 
     # 检查消息内容是否符合指定格式
-    if pattern.match(message_content) or pattern2.match(message_content):
-        if sub_pattern.match(message_content):
-            return
-        message_id = event.message_id  # 获取消息 ID
+    if sub_pattern.match(message_content):
+        return
+    message_id = event.message_id  # 获取消息 ID
 
-        # 调用 OneBot v11 API 设置精华
+    # 调用 OneBot v11 API 设置精华
+    try:
+        await bot.call_api("set_essence_msg", message_id=message_id)
+        await auto_set_essence.send("捕食到一条smdm！")
+
+    except Exception as e:
+        await auto_set_essence.send(f"设置精华消息失败: {e}")
+
+    data = read_json(JSON_FILE_PATH)
+    if pattern.match(message_content):
+        id = data[group_id]["world"]
         try:
-            await bot.call_api("set_essence_msg", message_id=message_id)
-            await auto_set_essence.send("捕食到一条smdm！")
+            await bot.call_api("delete_essence_msg", message_id=id)
+            await auto_set_essence.send("已删除上一条smdm。")
+        except Exception:
+            pass
+        data[group_id]["world"] = message_id
+    else:
+        id = data[group_id]["rise"]
+        try:
+            await bot.call_api("delete_essence_msg", message_id=id)
+            await auto_set_essence.send("已删除上一条smdm。")
+        except Exception:
+            pass
+        data[group_id]["rise"] = message_id
 
-        except Exception as e:
-            await auto_set_essence.send(f"设置精华消息失败: {e}")
-
-        data = read_json(JSON_FILE_PATH)
-        if pattern.match(message_content):
-            id = data[group_id]["world"]
-            try:
-                await bot.call_api("delete_essence_msg", message_id=id)
-                await auto_set_essence.send("已删除上一条smdm。")
-            except Exception:
-                pass
-            data[group_id]["world"] = message_id
-        else:
-            id = data[group_id]["rise"]
-            try:
-                await bot.call_api("delete_essence_msg", message_id=id)
-                await auto_set_essence.send("已删除上一条smdm。")
-            except Exception:
-                pass
-            data[group_id]["rise"] = message_id
-
-        write_json(data, JSON_FILE_PATH)
+    write_json(data, JSON_FILE_PATH)
 
 
 def read_json(file_path):

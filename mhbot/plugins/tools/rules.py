@@ -1,3 +1,5 @@
+from typing import Pattern
+
 from nonebot.rule import Rule
 from nonebot.adapters.onebot.v11 import Bot, MessageEvent
 
@@ -27,3 +29,14 @@ def send_by_superusers() -> Rule:
         return event.get_user_id() in config.superusers
 
     return Rule(_send_by_superuser)
+
+
+def match_regex(*args: Pattern) -> Rule:
+    async def _match_regex(bot: Bot, event: MessageEvent) -> bool:
+        message_content = event.get_plaintext().strip()
+        ret = False
+        for regex in args:
+            ret = ret or regex.match(message_content)
+        return ret
+
+    return Rule(_match_regex)
